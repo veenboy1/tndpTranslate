@@ -1,14 +1,22 @@
-from opt_problems import MasterProblem, SubProblem, NetworkDemand
-import parameters as p
+import networkx
+from opt_problems import MasterProblem, SubProblem
+import opt_problems as op
+from gurobipy import tupledict
 
 
-def column_generation(network, budget, max_iterations=100):
+def column_generation(network, budget, options, initial_lines, max_iterations=100):
     # Initialize problems
-    master = MasterProblem(network, budget, options={})
-    sub = SubProblem(network, options={})
+    master = MasterProblem(network, budget, options, initial_lines)
 
     # Step 1: Set up master problem
     master.setup()
+
+    # Step 2: Run master with initial lines:
+    master.solve()
+    dual_values = op.SubProblemDuals(master.dual_values)
+
+    # Step 3: Set up the SubProblem
+    sub = SubProblem(network, dual_values, options)
 
     for iteration in range(max_iterations):
         print(f"Iteration {iteration}: Solving Master Problem...")
@@ -18,7 +26,7 @@ def column_generation(network, budget, max_iterations=100):
 
         # Step 3: Pass dual values to subproblem
         print("Solving Subproblem...")
-        sub.setup(master.dual_values)
+        sub.setup()
         sub.solve()
 
         # Check if subproblem generated a new line
@@ -34,6 +42,17 @@ def column_generation(network, budget, max_iterations=100):
 
 
 if __name__ == '__main__':
-    print('hello world')
-    # TODO: I left off working on this class
-    # nd = NetworkDemand(p.G, )
+    # Situation creation
+    network = networkx.DiGraph()
+    demand = tupledict()
+    sit = op.Situation(network, demand)
+
+    # Lines to start
+    lines = []
+
+    # Other parameters
+    budget = 1e7
+    options = op.MasterOptions() # <- if you don't want the default values, change them here
+    max_iterations = 100
+
+    column_generation(sit, budget, options, lines, max_iterations)
