@@ -30,7 +30,7 @@ pip install gurobipy networkx matplotlib pandas
 
 ### Cloning 
 
-You can clone the respository from the [GitHub](https://github.com/veenboy1/tndpTranslate), or by running the following: 
+You can clone the respository from [our GitHub](https://github.com/veenboy1/tndpTranslate), or by running the following: 
 
 ```shell
 git clone https://github.com/veenboy1/tndpTranslate
@@ -50,7 +50,7 @@ Once the network is established, running it only requires changing the variables
 
 ## Project Structure 
 
-The code is straightforward. The file `main.py` contains everything necessary for a successful run of the problem. All classes associated with the optimization model are stored in the file `opt_problems`. `network_functions.py` contains functions that help with the creation of transportation networks, primarily from the `.tntp` file type; see this [GitHub](www.google.com) for details on the networks used in testing.
+The code is straightforward. The file `main.py` contains everything necessary for a successful run of the problem. All classes associated with the optimization model are stored in the file `opt_problems`. `network_functions.py` contains functions that help with the creation of transportation networks, primarily from the `.tntp` file type; see [this GitHub](http://www.bgu.ac.il/~bargera/tntp/) for details on the networks used in testing.
 
 ## Final notes!
 
