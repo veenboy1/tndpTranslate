@@ -50,16 +50,16 @@ Once the network is established, running it only requires changing the variables
 
 ## Project Structure 
 
-The code is straightforward. The file `main.py` contains everything necessary for a successful run of the problem. All classes associated with the optimization model are stored in the file `opt_problems`. `network_functions.py` contains functions that help with the creation of transportation networks, primarily from the `.tntp` file type; see [this GitHub](http://www.bgu.ac.il/~bargera/tntp/) for details on the networks used in testing.
+The code is straightforward. The file `main.py` contains everything necessary for a successful run of the problem. All classes associated with the optimization model are stored in the file `opt_problems`. `network_functions.py` contains functions that help with the creation of transportation networks, primarily from the `.tntp` file type; see [this GitHub](https://github.com/bstabler/TransportationNetworks) for details on the networks used in testing.
 
 ## Final notes!
 
-### Licence 
+### License  
 
-This code is held under an MIT license. 
+This project is licensed under the MIT License, which means you are free to use, modify, and distribute this code. There are no restrictions on commercial or private use.
 
 ### Contact & Contributions 
 
 If you have questions or comments, or especially possible improvements to the code, feel free to reach out to Geoffrey at `vandervg@uci.edu` or `gvanderveen04@gmail.com`; he checks both, but he might have graduated by the time you need to get in contact. 
 
-Also, if you end up using it at all, please reach out! It would be a pleasure to hear that the hard work on this project is going farther than its home at the University of California, Irvine. _~_ GVV 
+Also, if you end up using it at all, please reach out! It would be a pleasure to hear that the hard work on this project is going farther than its home at the University of California, Irvine. _~_ GVV
