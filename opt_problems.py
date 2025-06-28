@@ -2,7 +2,7 @@ from gurobipy import Model, GRB, quicksum
 import gurobipy as gp
 import networkx as nx
 
-import parameters as p
+import parameters as params
 
 
 # File for storing the classes used to implement the column generation
@@ -31,7 +31,7 @@ class MasterOptions:
 
 
 class Situation:
-    """A class to represent the situation - the roads, the nodes, and the demand"""
+    """A class to represent the situation - the roads, nodes, and demand"""
     def __init__(self, graph, demand=None):
         """Initialize the NetworkDemand class"""
         # NetworkX graph
@@ -255,25 +255,40 @@ class SubProblem:
         # Decision variables (to be initialized in build_model)
         self.h = None  # Transit links chosen
         self.g = None  # OD pairs covered
+        self.source = None  # Choosing the source node
+        self.sink = None  # Choosing the sink node
 
         # Delta dictionary bc I don't want to deal with a DiGraph right now
+        # could be adjusted to have unequal costs in each direction
         self.delta = gp.tupledict({(u, v): self.situation.network1[u][v][self.options.weight]
                                    for u, v in self.situation.network1.edges})
 
     def setup(self):
-        # Decision variables
+        # Debug
+        print('Begin Setup')
+
+        # ----- Decision variables ----- #
+        # vars for which demand will be served and which edges will be included
         self.h = self.model.addVars(self.situation.network1.edges(), vtype=GRB.BINARY, name="h")
         self.g = self.model.addVars(self.situation.demand.keys(), vtype=GRB.BINARY, name="g")
 
-        # *Objective function
-        # First summation:
+        # vars for selecting a source and sink
+        self.source = self.model.addVars(self.situation.network1.nodes(), vtype=GRB.BINARY, name="source")
+        self.sink = self.model.addVars(self.situation.network1.nodes(), vtype=GRB.BINARY, name="source")
+
+        self.model.update()
+
+        # ----- Objective function ----- #
+        # first sum:
         first_term = self.gamma_f * gp.quicksum(self.p[u, v] * self.g[u, v] for u, v in self.g.keys())
-        # Second summation:
+        # second sum:
         second_term = self.rho_f * gp.quicksum(self.q * self.delta[u, v] * self.h[u, v] for u, v in self.h.keys())
-        # Set the objective function
+        # set objective function
         self.model.setObjective(first_term - second_term, GRB.MAXIMIZE)
 
-        # Model Constraints
+        self.model.update()
+
+        # ----- Model Constraints ----- #
 
         # Constraint 6e:
         self.model.addConstrs(
@@ -288,9 +303,48 @@ class SubProblem:
              for u, v in self.g.keys()),
             name="demand_inflow_v"
         )
+
+        # Source and Sink Constraints: -> not in paper but in their code
+        self.model.addConstr(
+            (gp.quicksum(self.source) == 1), name="one_source"
+        )
+
+        self.model.addConstr(
+            (gp.quicksum(self.sink) == 1), name="one_sink"
+        )
+
+        # The ones that need to be lazy otherwise they take too long
+        # TODO: Code the lazy constraints
+
         # Update model
         self.model.update()
 
-    def subproblem_update(self, new_duals):
-        # TODO: create a function to only update dual values and objective function
-        pass
+    def subproblem_update(self, dual_values, f_index=None):
+        """
+        Update the subproblem without rebuilding the whole model.
+
+        :param dual_values: class containing subproblem dual values
+        :param f_index: optional parameter to specify the frequency of the line
+        """
+        # ----- Input Updates ----- #
+        # Input values adjusted
+        self.p = dual_values.p_dict  # p_dict from SubProblemDuals
+        self.q = max(dual_values.q, .001)  # budget dual value from SubProblemDuals
+
+        # Frequency related parameters changed if specified
+        if f_index:
+            self.gamma_f = self.options.gamma[f_index]
+            self.rho_f = self.options.costwts[f_index]
+        else:
+            # TODO: figure out if you need something here
+            pass
+
+        # ----- Objective function Updates ----- #
+        # first sum:
+        first_term = self.gamma_f * gp.quicksum(self.p[u, v] * self.g[u, v] for u, v in self.g.keys())
+        # second sum:
+        second_term = self.rho_f * gp.quicksum(self.q * self.delta[u, v] * self.h[u, v] for u, v in self.h.keys())
+        # set objective function
+        self.model.setObjective(first_term - second_term, GRB.MAXIMIZE)
+
+        self.model.update()

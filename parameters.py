@@ -10,4 +10,4 @@ sf_demand_file = './resources/SiouxFalls/SiouxFalls_trips.txt'
 fig_size = 24
 dpi = 250
 
-# TODO: remove this file from the github; only for personal use.
+

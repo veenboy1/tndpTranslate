@@ -33,4 +33,5 @@ s_opts = op.SubProblemDuals(master.dual_values)
 
 subproblem = op.SubProblem(sit, s_opts, options)
 
-# subproblem.setup()
+subproblem.setup()
+print(subproblem.model.getConstrs())
