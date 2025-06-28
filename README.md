@@ -1,7 +1,7 @@
 # TNDP Translate
 ### *Revisitng "Data-Driven Transit Network Design at Scale"*
 
-Hello all! This is code used by Geoffrey Vander Veen and the team at the University of California, Irvine, Institute of Transportation studies to run the math program outlined by Dimitris Bertsimas, Yee Sian Ng, and Julia Yan in their paper "Data-Driven Transit Network Design at Scale" (2020). 
+Hello all! This is code used by Geoffrey Vander Veen and the team at the University of California, Irvine, Institute of Transportation Studies to run the math program outlined by Dimitris Bertsimas, Yee Sian Ng, and Julia Yan in their paper "Data-Driven Transit Network Design at Scale" (2020). 
 
 We plan to use this as a complement to other research conducted by ITS Irvine to speedily and efficiently create bus networks as necessary in our exploration of transit network design. It is a direct translation of the work done by Bertisimas, et al., but using modern Python implementation with Gurobi.  
 
