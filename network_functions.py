@@ -17,7 +17,8 @@ Status of the networks:
     - store your direction as a vector called 'b' in the graph to avoid errors  
 '''
 
-
+# TODO: figure out which of these funcitons are important for outsiders to use
+# \_> I don't really want to clutter it up if I don't need all these functions.
 # ---------- Load network data ---------- #
 def read_node_pos_geojson(file_name, verbose=False):
     gdf = gpd.GeoDataFrame.from_file(file_name)
