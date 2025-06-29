@@ -9,7 +9,8 @@ import parameters as params
 
 
 class MasterOptions:
-    def __init__(self, nfreqs=3, freqwts=None, costwts=None, gamma=None, weight=None):
+    def __init__(self, nfreqs=3, freqwts=None, costwts=None, gamma=None, weight=None, headings=None,
+                 max_len=None):
         """
         Initialize MasterOptions with default or user-provided values.
 
@@ -18,12 +19,17 @@ class MasterOptions:
             freqwts (list): Relative ridership coefficients for each frequency. Default is [0.5, 1.0, 1.5].
             costwts (list): Relative cost coefficients for each frequency. Default is [1.0, 1.5, 2.0].
             gamma (list): Relative coverage coefficients for each frequency. Default is [.10, .25, .60].
+            weight (any): The key for the weight used for each link in the network
+            headings (bool): Toggle the heading separators in the Subproblem
+            max_len (int): Maximum length for a transit line
         """
         self.nfreqs = nfreqs
         self.freqwts = freqwts if freqwts is not None else [0.5, 1.0, 1.5]
         self.costwts = costwts if costwts is not None else [1.0, 1.5, 2.0]  # note: cost per length of frequency (rho)
         self.gamma = gamma if gamma is not None else [.10, .25, .60]
         self.weight = weight if weight is not None else 'Length '  # Default value is the one in the SF network
+        self.headings = headings if headings is not None else True # Toggle divider headings in Subproblem
+        self.max_len = max_len if max_len is not None else 50
 
         # Validate lengths
         if len(self.freqwts) != self.nfreqs or len(self.costwts) != self.nfreqs:
@@ -265,16 +271,17 @@ class SubProblem:
 
     def setup(self):
         # Debug
-        print('Begin Setup')
+        if self.options.headings: print('\n|---------- Begin Setup ----------| \n')
 
         # ----- Decision variables ----- #
         # vars for which demand will be served and which edges will be included
         self.h = self.model.addVars(self.situation.network1.edges(), vtype=GRB.BINARY, name="h")
+        self.model._h = self.h  # h duplicate for the lazy constraints
         self.g = self.model.addVars(self.situation.demand.keys(), vtype=GRB.BINARY, name="g")
 
         # vars for selecting a source and sink
         self.source = self.model.addVars(self.situation.network1.nodes(), vtype=GRB.BINARY, name="source")
-        self.sink = self.model.addVars(self.situation.network1.nodes(), vtype=GRB.BINARY, name="source")
+        self.sink = self.model.addVars(self.situation.network1.nodes(), vtype=GRB.BINARY, name="sink")
 
         self.model.update()
 
@@ -304,20 +311,91 @@ class SubProblem:
             name="demand_inflow_v"
         )
 
-        # Source and Sink Constraints: -> not in paper but in their code
-        self.model.addConstr(
-            (gp.quicksum(self.source) == 1), name="one_source"
+        # One Source and One Sink Constraints: -> not in paper but in their code
+        self.model.addConstr(gp.quicksum(self.source[n] for n in self.source) == 1, name="one_source")
+        self.model.addConstr(gp.quicksum(self.sink[n] for n in self.sink) == 1, name="one_sink")
+
+        # One flow conservation constraint to rule them all
+        self.model.addConstrs(
+            (
+                gp.quicksum(self.h[i, j] for (i, j) in self.situation.network1.out_edges(n)) -
+                gp.quicksum(self.h[i, j] for (i, j) in self.situation.network1.in_edges(n))
+                ==
+                self.source[n] - self.sink[n]
+                for n in self.situation.network1.nodes()
+            ),
+            name="flow_conservation"
         )
 
+        # Maximum line length constraint to save computational time
+        # ----- Maximum line length constraint ----- #
         self.model.addConstr(
-            (gp.quicksum(self.sink) == 1), name="one_sink"
+            gp.quicksum(self.delta[u, v] * self.h[u, v] for (u, v) in self.h.keys()) <= self.options.max_len,
+            name="max_line_length"
         )
-
-        # The ones that need to be lazy otherwise they take too long
-        # TODO: Code the lazy constraints
-
         # Update model
         self.model.update()
+
+    def optimize(self):
+        if self.options.headings: print('\n|---------- Begin Optimization ----------| \n')
+
+        self.model.Params.LazyConstraints = 1
+        self.model.optimize(subtour_elimination_callback)
+
+        if self.options.headings: print('\n|---------- Results ----------| \n')
+
+        status = self.model.Status
+
+        if status in [GRB.INFEASIBLE, GRB.UNBOUNDED, GRB.INF_OR_UNBD]:
+            print("Subproblem infeasible or unbounded.")
+            return None
+
+        if status != GRB.OPTIMAL:
+            print(f"Optimization ended with status {status}")
+            return None
+
+        obj_val = self.model.ObjVal
+        print(f"Subproblem optimal objective: {obj_val:.4f}")
+
+        if obj_val < 0:
+            print("Warning: Optimal solution has negative objective value.")
+
+        # Extract source and sink nodes
+        source_node = None
+        sink_node = None
+
+        for n in self.situation.network1.nodes():
+            if self.source[n].X > 0.5:
+                source_node = n
+            if self.sink[n].X > 0.5:
+                sink_node = n
+
+        if source_node is None or sink_node is None:
+            print("Error: No valid source/sink found.")
+            return None
+
+        # Build the subgraph of selected h edges
+        selected_edges = [(u, v) for (u, v) in self.h.keys() if self.h[u, v].X > 0.5]
+        G_selected = nx.DiGraph()
+        G_selected.add_edges_from(selected_edges)
+
+        # Find a path from source to sink
+        try:
+            G_undirected = G_selected.to_undirected()
+            if source_node in G_undirected and sink_node in G_undirected:
+                stops = nx.shortest_path(G_undirected, source=source_node, target=sink_node)
+            else:
+                print(f"Warning: Source {source_node} or sink {sink_node} not in selected subgraph.")
+                return None
+        except nx.NetworkXNoPath:
+            print("No path from source to sink in selected edges.")
+            return None
+
+        # Create the TransitLine object
+        line = TransitLine(origin=source_node, destination=sink_node, stops=stops)
+        line.compute_length(self.situation.network1, weight=self.options.weight)
+
+        return line
 
     def subproblem_update(self, dual_values, f_index=None):
         """
@@ -332,7 +410,7 @@ class SubProblem:
         self.q = max(dual_values.q, .001)  # budget dual value from SubProblemDuals
 
         # Frequency related parameters changed if specified
-        if f_index:
+        if f_index is not None:
             self.gamma_f = self.options.gamma[f_index]
             self.rho_f = self.options.costwts[f_index]
         else:
@@ -348,3 +426,26 @@ class SubProblem:
         self.model.setObjective(first_term - second_term, GRB.MAXIMIZE)
 
         self.model.update()
+
+
+# Functions defined outside the scope of one class
+def subtour_elimination_callback(model, where):
+    if where == GRB.Callback.MIPSOL:
+        # Get variable values at the current solution
+        h_values = model.cbGetSolution(model._h)
+
+        # Build subgraph of selected edges
+        selected_edges = [(u, v) for (u, v), val in h_values.items() if val > 0.5]
+        G_selected = nx.DiGraph()
+        G_selected.add_edges_from(selected_edges)
+
+        # Get all weakly connected components (works for directed graphs)
+        for component in nx.weakly_connected_components(G_selected):
+            if len(component) == 1:
+                continue  # skip singletons
+
+            subgraph_edges = [(u, v) for (u, v) in selected_edges if u in component and v in component]
+
+            # Lazy constraint: sum of h[u,v] inside component ≤ |S| - 1
+            lhs = gp.quicksum(model._h[u, v] for u, v in subgraph_edges)
+            model.cbLazy(lhs <= len(component) - 1)
