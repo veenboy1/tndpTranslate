@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 import parameters as p
 from gurobipy import tupledict
+from random import random
 
 
 '''
@@ -215,3 +216,41 @@ def parse_demand(file_path):
                     demand_data[origin, dest] = value
 
     return demand_data
+
+
+def plot_transit_lines(graph, lines, pos=None, title="Transit Lines", alpha=0.3, show_labels=True):
+    """
+    Plots a list of TransitLine objects on top of a base graph.
+
+    Parameters:
+    - graph: NetworkX DiGraph or Graph
+    - lines: list of TransitLine objects (each has .stops and .od)
+    - pos: dictionary of node positions; if None, spring_layout will be used
+    - title: string for plot title
+    - alpha: transparency for line edges (default 0.3)
+    - show_labels: whether to draw node labels
+    """
+    if pos is None:
+        pos = nx.spring_layout(graph)
+
+    plt.figure(figsize=(12, 10))
+
+    # Draw base graph
+    nx.draw_networkx_edges(graph, pos, edge_color='lightgray', width=1, arrows=False)
+    nx.draw_networkx_nodes(graph, pos, node_size=50, node_color='gray')
+
+    # Draw each transit line
+    for i, line in enumerate(lines):
+        color = (random(), random(), random())  # random RGB
+        line_edges = list(zip(line.stops[:-1], line.stops[1:]))
+
+        nx.draw_networkx_edges(graph, pos, edgelist=line_edges, edge_color=[color], width=3, alpha=alpha)
+        nx.draw_networkx_nodes(graph, pos, nodelist=line.stops, node_color=[color], node_size=70, alpha=alpha)
+
+        if show_labels:
+            nx.draw_networkx_labels(graph, pos, labels={n: n for n in line.stops}, font_size=8, font_color='black')
+
+    plt.title(title)
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()

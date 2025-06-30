@@ -1,16 +1,18 @@
 from gurobipy import Model, GRB, quicksum
 import gurobipy as gp
 import networkx as nx
-
+import pandas as pd
 import parameters as params
-
+from random import random
+import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 
 # File for storing the classes used to implement the column generation
 
 
 class MasterOptions:
     def __init__(self, nfreqs=3, freqwts=None, costwts=None, gamma=None, weight=None, headings=None,
-                 max_len=None):
+                 max_len=None, length_weight=None):
         """
         Initialize MasterOptions with default or user-provided values.
 
@@ -30,6 +32,7 @@ class MasterOptions:
         self.weight = weight if weight is not None else 'Length '  # Default value is the one in the SF network
         self.headings = headings if headings is not None else True # Toggle divider headings in Subproblem
         self.max_len = max_len if max_len is not None else 50
+        self.length_weight = length_weight if length_weight is not None else 'Length '
 
         # Validate lengths
         if len(self.freqwts) != self.nfreqs or len(self.costwts) != self.nfreqs:
@@ -126,7 +129,7 @@ class MasterProblem:
     def add_line(self, origin, destination, stops, first_time=False):
         """Add a new transit line to the master problem."""
         new_line = TransitLine(origin, destination, stops)
-        new_line.compute_length(self.network.network1)  # Compute its length using the graph
+        new_line.compute_length(self.network.network1, self.options.length_weight)  # Compute its length with the graph
         self.linelist.append(new_line)
         # not sure if I want this line below - might be inefficient ?
         if not first_time:
@@ -413,9 +416,6 @@ class SubProblem:
         if f_index is not None:
             self.gamma_f = self.options.gamma[f_index]
             self.rho_f = self.options.costwts[f_index]
-        else:
-            # TODO: figure out if you need something here
-            pass
 
         # ----- Objective function Updates ----- #
         # first sum:
@@ -449,3 +449,121 @@ def subtour_elimination_callback(model, where):
             # Lazy constraint: sum of h[u,v] inside component ≤ |S| - 1
             lhs = gp.quicksum(model._h[u, v] for u, v in subgraph_edges)
             model.cbLazy(lhs <= len(component) - 1)
+
+
+def get_active_transit_lines(master):
+    """
+    Returns a list of (line_index, TransitLine object, freq_index) tuples for lines selected in the master solution.
+    """
+    active_lines = []
+
+    for i, line in enumerate(master.linelist):
+        # Look for variables like x[i,j] — i = line index, j = frequency index
+        for v in master.model.getVars():
+            if v.varName.startswith(f'x[{i},') and v.X > 0.5:
+                freq_index = int(v.varName.split(',')[1][:-1])  # strip the closing bracket
+                active_lines.append((i, line, freq_index))
+                break  # one freq per line
+
+    return active_lines
+
+
+def make_transit_line_summary(active_lines, master):
+    """
+    Returns a pandas DataFrame summarizing each active transit line.
+
+    Parameters:
+    - active_lines: output from get_active_transit_lines()
+    - master: the MasterProblem object (used for options)
+
+    Returns:
+    - DataFrame with line #, OD, length, cost, and freq weight
+    """
+    rows = []
+    for line_index, line, freq_index in active_lines:
+        freq_weight = master.options.costwts[freq_index]
+        cost = line.length * freq_weight
+        rows.append({
+            "Line #": line_index,
+            "OD": f"{line.od[0]}–{line.od[1]}",
+            "Length": round(line.length, 2),
+            "Cost": round(cost, 2),
+            "Freq Weight": freq_weight
+        })
+
+    df = pd.DataFrame(rows)
+    return df
+
+
+def plot_transit_lines(graph, active_lines, pos=None, alpha=0.3, title="Transit Lines", plot_all=False, save_it=None):
+    """
+    Plots a list of transit lines on the graph using networkx and matplotlib.
+
+    Parameters:
+    - graph: NetworkX DiGraph
+    - active_lines: output from get_active_transit_lines()
+    - pos: node positions (dict)
+    - alpha: transparency of the lines
+    - title: plot title
+    - plot_all: boolean to turn on plotting all transit lines on their own network
+    - save_it: string to give a file path to save the images to
+    """
+    if pos is None:
+        pos = nx.spring_layout(graph)
+
+    plt.figure(figsize=(10, 8))
+    nx.draw_networkx_edges(graph, pos, edge_color='lightgray', width=1)
+    nx.draw_networkx_nodes(graph, pos, node_size=40, node_color='gray')
+
+    if plot_all:
+        colors = {}
+
+    for i, line, _ in active_lines:
+        path_edges = list(zip(line.stops[:-1], line.stops[1:]))
+        color = [random() for _ in range(3)]  # random RGB
+
+        if plot_all:
+            colors[str(i)] = color
+
+        nx.draw_networkx_edges(graph, pos, edgelist=path_edges, width=2.5,
+                               edge_color=[color], alpha=alpha, arrows=False)
+        nx.draw_networkx_nodes(graph, pos, nodelist=line.stops, node_color=[color], node_size=60, alpha=alpha)
+
+    legend_handles = []
+    for i, line, _ in active_lines:
+        # after you generate the color:
+        legend_handles.append(Patch(facecolor=colors[str(i)], edgecolor='black',
+                                    label=f'Line {i + 1}: {line.od[0]}→{line.od[1]}'))
+
+    plt.legend(handles=legend_handles, loc='lower left', fontsize='small', frameon=True)
+
+    plt.title(title)
+    plt.axis('off')
+    plt.tight_layout()
+
+    if save_it is not None:
+        plt.savefig(save_it + 'all lines.png')
+
+    plt.show()
+
+    if plot_all:
+        for i, line, _ in active_lines:
+            plt.figure(figsize=(10, 8))
+            # Base network
+            nx.draw_networkx_edges(graph, pos, edge_color='lightgray', width=1, arrows=False)
+            nx.draw_networkx_nodes(graph, pos, node_size=40, node_color='gray')
+
+            # Plot current transit line
+            edges = list(zip(line.stops[:-1], line.stops[1:]))
+            nx.draw_networkx_edges(graph, pos, edgelist=edges, edge_color=colors[str(i)], width=2.5)
+            nx.draw_networkx_nodes(graph, pos, nodelist=line.stops, node_color=colors[str(i)], node_size=70)
+            nx.draw_networkx_labels(graph, pos, labels={n: n for n in line.stops}, font_size=8)
+
+            plt.title(f"Transit Line {i + 1}: {line.od[0]} → {line.od[1]}")
+            plt.axis('off')
+            plt.tight_layout()
+
+            if save_it is not None:
+                plt.savefig(save_it + f'Transit Line {i + 1}.png')
+
+            plt.show()
