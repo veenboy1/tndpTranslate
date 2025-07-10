@@ -9,5 +9,3 @@ sf_demand_file = './resources/SiouxFalls/SiouxFalls_trips.txt'
 # figure size variable
 fig_size = 24
 dpi = 250
-
-
