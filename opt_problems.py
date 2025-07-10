@@ -2,17 +2,21 @@ from gurobipy import Model, GRB, quicksum
 import gurobipy as gp
 import networkx as nx
 import pandas as pd
+
+import parameters
 import parameters as params
 from random import random
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+from network_functions import read_node_pos
+
 
 # File for storing the classes used to implement the column generation
 
 
 class MasterOptions:
     def __init__(self, nfreqs=3, freqwts=None, costwts=None, gamma=None, weight=None, headings=None,
-                 max_len=None, length_weight=None):
+                 max_len=None, length_weight=None, limit_dir=None):
         """
         Initialize MasterOptions with default or user-provided values.
 
@@ -30,9 +34,10 @@ class MasterOptions:
         self.costwts = costwts if costwts is not None else [1.0, 1.5, 2.0]  # note: cost per length of frequency (rho)
         self.gamma = gamma if gamma is not None else [.10, .25, .60]
         self.weight = weight if weight is not None else 'Length '  # Default value is the one in the SF network
-        self.headings = headings if headings is not None else True # Toggle divider headings in Subproblem
+        self.headings = headings if headings is not None else True  # Toggle divider headings in Subproblem
         self.max_len = max_len if max_len is not None else 50
         self.length_weight = length_weight if length_weight is not None else 'Length '
+        self.limit_dir = limit_dir if limit_dir is not None else False
 
         # Validate lengths
         if len(self.freqwts) != self.nfreqs or len(self.costwts) != self.nfreqs:
@@ -41,6 +46,7 @@ class MasterOptions:
 
 class Situation:
     """A class to represent the situation - the roads, nodes, and demand"""
+
     def __init__(self, graph, demand=None):
         """Initialize the NetworkDemand class"""
         # NetworkX graph
@@ -266,6 +272,7 @@ class SubProblem:
         self.g = None  # OD pairs covered
         self.source = None  # Choosing the source node
         self.sink = None  # Choosing the sink node
+        self.angle_hash = None  # If limit_dir is true, stores the angle of all the edges in the graph
 
         # Delta dictionary bc I don't want to deal with a DiGraph right now
         # could be adjusted to have unequal costs in each direction
@@ -336,6 +343,44 @@ class SubProblem:
             gp.quicksum(self.delta[u, v] * self.h[u, v] for (u, v) in self.h.keys()) <= self.options.max_len,
             name="max_line_length"
         )
+
+        if self.options.limit_dir:
+            from numpy import arccos, dot
+            from numpy.linalg import norm
+
+            def determine_angle_difference(u, v, limit_angle=None, return_angle=False):
+                """
+                Determines the angle between two vectors u and v.
+                Returns the angle if return_angle is True, otherwise compares to limit_angle.
+                """
+                theta = arccos(dot(u, v) / (norm(u) * norm(v)))
+                return theta if return_angle else theta < limit_angle
+
+            # Read node positions from file
+            pos = read_node_pos(parameters.sf_node_file)
+
+            # Find the OD pair with the highest dual variable
+            max_od = self.p.idxmax()
+            o, d = max_od
+            main_dir = (pos[d][0] - pos[o][0], pos[d][1] - pos[o][1])
+
+            # Compute angle between each edge's direction and the main direction
+            self.angle_hash = {
+                edge: determine_angle_difference(
+                    (pos[edge[1]][0] - pos[edge[0]][0], pos[edge[1]][1] - pos[edge[0]][1]),
+                    main_dir,
+                    return_angle=True
+                )
+                for edge in self.situation.network1.edges()
+            }
+
+            # Add constraints to restrict edges that deviate too far from main direction
+            limit_angle = self.options.limit_dir  # in radians
+            for edge, angle in self.angle_hash.items():
+                if angle > limit_angle:
+                    self.model.addConstr(self.x[edge] == 0, name=f"dir_limit_{edge}")
+
+
         # Update model
         self.model.update()
 
