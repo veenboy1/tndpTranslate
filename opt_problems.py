@@ -28,6 +28,8 @@ class MasterOptions:
             weight (any): The key for the weight used for each link in the network
             headings (bool): Toggle the heading separators in the Subproblem
             max_len (int): Maximum length for a transit line
+            length_weight (any): The key for the weight used for each link in the network
+            limit_dir (float): Toggle the limit direction for each link, provide a Radian value if in use
         """
         self.nfreqs = nfreqs
         self.freqwts = freqwts if freqwts is not None else [0.5, 1.0, 1.5]
@@ -360,7 +362,7 @@ class SubProblem:
             pos = read_node_pos(parameters.sf_node_file)
 
             # Find the OD pair with the highest dual variable
-            max_od = self.p.idxmax()
+            max_od = max(self.p.items(), key=lambda item: item[1])[0]
             o, d = max_od
             main_dir = (pos[d][0] - pos[o][0], pos[d][1] - pos[o][1])
 
@@ -378,7 +380,7 @@ class SubProblem:
             limit_angle = self.options.limit_dir  # in radians
             for edge, angle in self.angle_hash.items():
                 if angle > limit_angle:
-                    self.model.addConstr(self.x[edge] == 0, name=f"dir_limit_{edge}")
+                    self.model.addConstr(self.h[edge] == 0, name=f"dir_limit_{edge}")
 
 
         # Update model
