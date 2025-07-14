@@ -7,5 +7,5 @@ sf_node_file = './resources/SiouxFalls/SiouxFalls_node.txt'
 sf_demand_file = './resources/SiouxFalls/SiouxFalls_trips.txt'
 
 # figure size variable
-fig_size = 24
+fig_size = (24, 12)
 dpi = 250
