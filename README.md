@@ -42,7 +42,7 @@ git clone https://github.com/veenboy1/tndpTranslate
 
 This software wil require you to first define a transportation network with demand specified between every nodal pair. This will be in the form of a `Situation` object. To successfully create one, you must have a NetworkX `DiGraph` object that represents nodes and links in the network along with a gurobipy `tupledict` of demand, formatted `tupledict(origin, destination) = demand`. You can also add the demand one-by-one or edit existing demand with the `set_demand()` method. All of these will be used as inputs to the main script. 
 
-*Note:* If you would like to display your network, you can give each node a location when creating the `DiGraph`. In a future version I will create a function to plot the map and the selected lines within it. 
+*Note:* If you would like to display your network, you can give each node a location when creating the `DiGraph`. In the `networkx` documentation there are instructions on how to create this position dictionary, usually named `pos`.
 
 ### Run
 
