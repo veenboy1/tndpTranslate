@@ -126,6 +126,118 @@ def create_test_net(dg=False):
     return G
 
 
+def create_test_net2(dg=False):
+    """
+    creates a test graph that hopefully proves our point.
+    :param dg: draw the graph. Default is False.
+    :return:
+    """
+    # Create the network
+    G = nx.DiGraph()
+    G.add_nodes_from(['1', '2', '3', '4', '5',
+                      'A', 'B', 'C', 'D', 'E',
+                      '21', '31', '41', '32',
+                      '29', '38', '39', '49'])
+    edges = [
+        ('1', 'A', {'length': 10}),
+        ('5', 'E', {'length': 10}),
+
+        ('2', '21', {'length': 1}),
+        ('21', '29', {'length': 8}),
+        ('29', 'B', {'length': 1}),
+
+        ('4', '41', {'length': 1}),
+        ('41', '49', {'length': 8}),
+        ('49', 'D', {'length': 1}),
+
+        ('3', '31', {'length': 1}),
+        ('31', '32', {'length': 1}),
+        ('32', '38', {'length': 6}),
+        ('38', '39', {'length': 1}),
+        ('39', 'C', {'length': 1}),
+
+        # diagonal ones
+        ('1', '21', {'length': 2}),
+        ('21', '32', {'length': 2}),
+        ('2', '31', {'length': 2}),
+        ('4', '31', {'length': 2}),
+        ('5', '41', {'length': 2}),
+        ('41', '32', {'length': 2}),
+
+        ('49', 'E', {'length': 2}),
+        ('38', '49', {'length': 2}),
+        ('38', '29', {'length': 2}),
+        ('29', 'A', {'length': 2}),
+        ('39', 'B', {'length': 2}),
+        ('39', 'D', {'length': 2}),
+
+        ('5', '4', {'length': 1}),
+        ('4', '3', {'length': 1}),
+        ('3', '2', {'length': 1}),
+        ('2', '1', {'length': 1}),
+
+        ('E', 'D', {'length': 1}),
+        ('D', 'C', {'length': 1}),
+        ('C', 'B', {'length': 1}),
+        ('B', 'A', {'length': 1}),
+
+    ]
+
+    edges_bidirectional = []
+    for u, v, attr in edges:
+        edges_bidirectional.append((u, v, attr))
+        edges_bidirectional.append((v, u, attr.copy()))
+
+    G.add_edges_from(edges_bidirectional)
+
+    # add position data
+    pos = {
+        '1': (0, 0),
+        '2': (0, 1),
+        '3': (0, 2),
+        '4': (0, 3),
+        '5': (0, 4),
+
+        'A': (10, 0),
+        'B': (10, 1),
+        'C': (10, 2),
+        'D': (10, 3),
+        'E': (10, 4),
+
+        '21': (1, 1),
+        '31': (1, 2),
+        '32': (2, 2),
+        '41': (1, 3),
+
+        '29': (9, 1),
+        '38': (8, 2),
+        '39': (9, 2),
+        '49': (9, 3),
+
+    }
+
+    if dg:
+        plt.figure(figsize=(24, 12))
+        nx.draw_networkx(G, pos, node_size=500, node_color='#aaaaff', arrowsize=20)
+        plt.show()
+
+    return G, pos
+
+
+def create_test_net2_demand():
+    demand_data = {
+        ('1', 'A'): 500,
+        ('2', 'B'): 500,
+        ('3', 'C'): 500,
+        ('4', 'D'): 500,
+        ('5', 'E'): 500
+    }
+
+    return tupledict(demand_data)
+
+
+
+
 def create_line_graph():
     """
     Creates a simple directed graph with 5 nodes (1 to 5) in a line.
