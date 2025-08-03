@@ -1,40 +1,14 @@
 import networkx as nx
 import pandas as pd
 import matplotlib.pyplot as plt
-import geopandas as gpd
 import parameters as p
 from gurobipy import tupledict
 from random import random
 
 
-'''
-Status of the networks: 
-
-* The only usable network right now is Souix Falls 
-    - it is the one we have been testing for much of this project so that should be okay
-    - I (Geoff) think that it should be okay for the completion of this project 
-* If you want to use other networks, you will need to do some direction vector logic. 
-    - usually you can just use the positions of the nodes for this 
-    - store your direction as a vector called 'b' in the graph to avoid errors  
-'''
-
 # TODO: figure out which of these funcitons are important for outsiders to use
 # \_> I don't really want to clutter it up if I don't need all these functions.
 # ---------- Load network data ---------- #
-def read_node_pos_geojson(file_name, verbose=False):
-    gdf = gpd.GeoDataFrame.from_file(file_name)
-
-    if verbose:
-        print(gdf)
-
-    positions = {row['id']: (row.geometry.y, row.geometry.x) for _, row in gdf.iterrows()}
-
-    if verbose:
-        print(positions)
-
-    return positions
-
-
 def read_network_info(file_name, skip_rows=7, returndf=False, tilde='~ ',
                       init_node='Init node ', term_node='Term node ',
                       is_anaheim=False):
@@ -51,31 +25,6 @@ def read_network_info(file_name, skip_rows=7, returndf=False, tilde='~ ',
         return nodes, edges, df
     else:
         return nodes, edges
-
-
-def create_disneytown(dg=False, save_file=None):
-    G = nx.DiGraph()
-
-    nodes2, edges = read_network_info(p.ana_net_file, 8, tilde='~',
-                                      init_node='init_node', term_node='term_node',
-                                      is_anaheim=True)
-
-    nodes = list(read_node_pos_geojson(p.ana_node_file).keys())
-
-    G.add_nodes_from(nodes)
-    G.add_edges_from(edges)
-
-    if dg:
-        positions = read_node_pos_geojson(p.ana_node_file)
-        plt.figure(figsize=p.fig_size)
-        nx.draw(G, pos=positions, with_labels=True, node_size=200, node_color="lightblue")
-        if save_file:
-            plt.savefig(save_file, dpi=p.dpi)
-            plt.close()
-        else:
-            plt.show()
-
-    return G
 
 
 def create_test_net(dg=False):
@@ -236,8 +185,6 @@ def create_test_net2_demand():
     return tupledict(demand_data)
 
 
-
-
 def create_line_graph():
     """
     Creates a simple directed graph with 5 nodes (1 to 5) in a line.
@@ -325,7 +272,7 @@ def parse_demand(file_path):
                     dest, value = part.split(":")
                     dest = int(dest.strip())
                     value = float(value.strip())
-                    demand_data[origin, dest] = value
+                    demand_data[(origin), (dest)] = value
 
     return demand_data
 
